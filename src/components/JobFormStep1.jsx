@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Briefcase, Clock, Star, FileText, Users
-} from 'lucide-react';
-
+import {Briefcase, Clock, Star, FileText, Users} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,7 +78,7 @@ const JobFormStep1 = ({ formData, handleInputChange, handleSubmit }) => {
         .map((skill) => skill.trim())
         .filter(Boolean);
       localStorage.setItem('requiredSkills', JSON.stringify(skillsArray));
-      await handleSubmit();  // <-- NO argument here
+      await handleSubmit(formData);  // <-- NO argument here
     } catch (error) {
       console.error('Submit error:', error);
     } finally {
@@ -90,7 +87,7 @@ const JobFormStep1 = ({ formData, handleInputChange, handleSubmit }) => {
   };
 
   return (
-    <div className="w-full max-w-6xl flex flex-col lg:flex-row items-center justify-center gap-8">
+    <div className="w-full max-w-6xl flex flex-col lg:flex-row items-center justify-center gap-24">
       {/* Left side illustration */}
       <motion.div
         initial={{ opacity: 0, x: -50 }}
@@ -101,8 +98,8 @@ const JobFormStep1 = ({ formData, handleInputChange, handleSubmit }) => {
       >
         <div className="relative w-full max-w-6xl mx-auto">
           <div className="mb-6 text-center max-w-3xl mx-auto px-4">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight text-gray-900">
-              <span className='text-white'>Resume Ranking</span><br />
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold leading-tight text-orange-400">
+              <span className='text-orange-400'>Resume Ranking</span><br />
               <span>for Perfect Matches</span>
             </h1>
             <p className="mt-4 text-base md:text-lg text-gray-800">
@@ -135,7 +132,7 @@ const JobFormStep1 = ({ formData, handleInputChange, handleSubmit }) => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="bg-sky-50/80 backdrop-blur-lg rounded-3xl shadow-2xl p-8"
+          className="bg-gray-100 backdrop-blur-lg rounded-3xl shadow-2xl p-8"
         >
           <div className="flex items-center justify-start mb-8">
             <div className="flex items-center gap-3">
@@ -227,6 +224,7 @@ const JobFormStep1 = ({ formData, handleInputChange, handleSubmit }) => {
                 />
                 {errors.requiredSkills && <p className="text-red-600 text-sm">{errors.requiredSkills}</p>}
               </div>
+
             </div>
 
             {/* Resume Upload */}
