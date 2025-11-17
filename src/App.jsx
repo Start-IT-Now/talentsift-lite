@@ -41,7 +41,7 @@ function App() {
       jobDescription: decodeSafe(params.get('job') || ''),
       yearsOfExperience: decodeSafe(params.get('yoe') || ''),
       jobTitle: decodeSafe(params.get('title') || ''),
-      jobtype: decodeSafe(params.get('jobtype') || ''),
+      jobType: decodeSafe(params.get('jobtype') || ''),
     }));
   }, []);
 
