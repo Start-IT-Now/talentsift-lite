@@ -3,27 +3,25 @@ import { Helmet, HelmetProvider } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/components/ui/use-toast';
-import { useNavigate } from 'react-router-dom';
 import JobFormStep1 from '@/components/JobFormStep1';
-import Footer from '@/components/Footer';
 import logo from './logo.png';
+import axios from 'axios';
 
 function App() {
   const [formData, setFormData] = useState({
     jobTitle: '',
     yearsOfExperience: '',
     jobType: '',
-    industry: '',
+    location: '',
     requiredSkills: '',
     jobDescription: '',
-    resumeFiles: [],
+    resumeFiles: null,
     source: '',
   });
 
   const { toast } = useToast();
-   const navigate = useNavigate();
 
-  // Auto-populate from URL params
+  // Auto-populate jobDescription and requiredSkills from URL params on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
@@ -35,18 +33,33 @@ function App() {
       }
     };
 
+    const jobTypeLabel = decodeSafe(params.get('jobtype') || '').trim();
+
+    const jobTypeMap = {
+      'Full time': 'fulltime',
+      'Part time': 'parttime',
+      'Contract': 'contract',
+      'Freelance': 'freelance',
+      'Internship': 'internship',
+    };
+
+    const mappedJobType = jobTypeMap[jobTypeLabel] || '';
+
     setFormData(prev => ({
       ...prev,
       requiredSkills: decodeSafe(params.get('skills') || ''),
       jobDescription: decodeSafe(params.get('job') || ''),
       yearsOfExperience: decodeSafe(params.get('yoe') || ''),
-      jobTitle: decodeSafe(params.get('title') || ''),
-      jobType: decodeSafe(params.get('jobtype') || ''),
+      jobTitle: decodeSafe(params.get('jobtitle') || ''),
+      jobType: mappedJobType,
     }));
   }, []);
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
   const stripHtml = (html) => {
@@ -59,91 +72,153 @@ function App() {
         el.appendChild(document.createTextNode(' '));
       }
     });
-    return (div.textContent || div.innerText || '').trim();
+    return div.textContent || div.innerText || '';
   };
 
- const handleSubmit = async () => {
-  if (!formData.jobTitle || !formData.jobType || !formData.jobDescription) {
-    toast({
-      title: "Missing Information",
-      description: "Please fill in all required fields before submitting.",
-      variant: "destructive"
-    });
-    return;
-  }
-
-  if (!formData.resumeFiles || formData.resumeFiles.length === 0) {
-    toast({
-      title: "Missing Resume",
-      description: "Please upload at least one resume before submitting.",
-      variant: "destructive"
-    });
-    return;
-  }
-
-  try {
-    const form = new FormData();
-    const orgIdFromStorage = Number(localStorage.getItem("orgId") || 1);
-
-    const jobPayload = {
-      org_id: orgIdFromStorage,
-      exe_name: formData.requiredSkills,
-      workflow_id: "resume_ranker",
-      job_description: stripHtml(formData.jobDescription) || "No description",
-      source: formData.source || "",
-    };
-
-    form.append("data", JSON.stringify(jobPayload));
-
-    const files = Array.isArray(formData.resumeFiles) ? formData.resumeFiles : [formData.resumeFiles];
-    files.forEach(file => {
-      if (file instanceof File) form.append("resumes", file);
-    });
-
-    const response = await fetch(
-      "https://agentic-ai.co.in/api/agentic-ai/workflow-exe",
-      { method: "POST", body: form }
-    );
-
-    let result;
-    try {
-      result = await response.json();
-    } catch {
-      throw new Error("Server did not return JSON");
+  const handleSubmit = async () => {
+    if (!formData.jobTitle || !formData.jobType || !formData.jobDescription) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields before submitting.",
+        variant: "destructive"
+      });
+      return;
     }
+
+    if (!formData.resumeFiles) {
+      toast({
+        title: "Missing Resume",
+        description: "Please upload a resume before submitting.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const form = new FormData();
+      const orgIdFromStorage = Number(localStorage.getItem("orgId") || 1);
+
+      const jobPayload = {
+        org_id: orgIdFromStorage,
+        exe_name: formData.requiredSkills,
+        workflow_id: "resume_ranker",
+        job_description: stripHtml(formData.jobDescription) || "No description",
+      };
+
+      form.append("data", JSON.stringify(jobPayload));
+
+      if (formData.resumeFiles instanceof File) {
+        form.append("resumes", formData.resumeFiles);
+      } else if (Array.isArray(formData.resumeFiles)) {
+        formData.resumeFiles.forEach(file => {
+          if (file instanceof File) form.append("resumes", file);
+        });
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const source = params.get("source") || "";
+
+      // ✅ Always call Agentic AI first
+      const response = await fetch(
+        "https://agentic-ai.co.in/api/agentic-ai/workflow-exe",
+        { method: "POST", body: form }
+      );
+ const result = await response.json();
 
     if (!response.ok) {
       throw new Error(result.message || `Upload failed with status ${response.status}`);
     }
 
-    // ✅ Save to localStorage for ResumeList
-      localStorage.setItem("resumeResults", JSON.stringify(result.data));
+    const resumeResults = result.data?.result;
+    
+      // Branch by source
+      if (source === "servicenow") {
+        console.log("source:", source);
+        console.log("Saving results to ServiceNow table...");
 
-    // ✅ Redirect to ResumeList
-    navigate("/resumes");
+        const servicenowResponse = await axios.post(
+          'https://dev303448.service-now.com/api/1763965/resumerankingapi/upload',
+          resumeResults,
+          {
+            auth: {
+              username: 'admin',
+              password: 'n/$zULuUC37l', // ⚠️ avoid hardcoding in production
+            },
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+          }
+        );
 
-    toast({
-      title: "Success",
-      description: "Job submitted and resumes processed successfully.",
-      variant: "default",
-    });
+        console.log("✅ ServiceNow Response:", servicenowResponse.data);
 
-  } catch (error) {
-    console.error(error);
-    toast({
-      title: "Submission Error",
-      description: error.message || "An unexpected error occurred",
-      variant: "destructive",
-    });
-  }
-};
+        toast({
+          title: "Success!",
+          description: "✅ Resume submitted successfully to Agentic AI & ServiceNow.",
+        });
+      }
 
+      else if (source === "qntrl") {
+        console.log("source:", source);
+        console.log("Passing Agentic AI results to Qntrl...");
+
+        // Send each result individually to Qntrl custom function
+        for (const item of resumeResults) {
+          const payload = {
+            name: item.name || "",
+            score: item.score || "",
+            phone: item.phone || "",
+            email: item.email || "",
+            justification: item.justification || ""
+          };
+
+          try {
+            const qntrlResponse = await fetch(
+              "https://core.qntrl.com/blueprint/api/startitnow/customfunction/executefunction/30725000001442833?auth_type=apikey&zapikey=1001.5463f5c0493a16f6bb82c3e842f58b22.1c6aa695092e2f82178622fc6e9e9e06",
+              {
+                method: "POST",
+                headers: {
+                  "Authorization": "Bearer 1001.5463f5c0493a16f6bb82c3e842f58b22.1c6aa695092e2f82178622fc6e9e9e06", // replace with a real token
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+              }
+            );
+
+            const qntrlResult = await qntrlResponse.json();
+
+            if (!qntrlResponse.ok) {
+              throw new Error(qntrlResult.message || "Qntrl submission failed");
+            }
+
+            console.log("✅ Sent to Qntrl:", qntrlResult);
+          } catch (err) {
+            console.error("❌ Qntrl submission failed:", err.message || err);
+          }
+        }
+
+        toast({
+          title: "Success!",
+          description: "✅ Agentic AI results successfully submitted to Qntrl.",
+        });
+      }
+
+    } catch (error) {
+      console.error("❌ Upload failed:", error.response?.data || error.message || error);
+      toast({
+        title: "Upload Failed",
+        description: "❌ Something went wrong. Check console for details.",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
     <HelmetProvider>
-      <div className="min-h-screen bg-gray-100 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-cyan-350 via-blue-500 to-blue-600 relative overflow-hidden">
         <Helmet>
-          <title>Talent Sift - Resume Screening Lite</title>
+          <title>Talent Sift - Job Posting Platform</title>
           <meta
             name="description"
             content="Create and post job opportunities with Talent Sift's intuitive job posting platform"
@@ -167,12 +242,6 @@ function App() {
           <div className="p-8">
             <img src={logo} alt="Talent Sift Logo" className="h-10" />
           </div>
-          <div>
-            <span className="absolute top-2 right-2 text-2xl font-serif font-bold text-gray-800">Talent Sift</span>
-          </div>
-          <div className="absolute top-6 right-0 p-4 flex items-center justify-end space-x-2">
-            <span className="text-s font-serif text-gray-500">Lite Version</span>
-          </div>
 
           {/* Job Form */}
           <div className="flex-1 flex items-center justify-center p-4">
@@ -185,10 +254,6 @@ function App() {
 
           <Toaster />
         </div>
-              {/* Footer */}
-          <div className="mt-8 ml-1 w-full">
-            <Footer />
-          </div>
       </div>
     </HelmetProvider>
   );
