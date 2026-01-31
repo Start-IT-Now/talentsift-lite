@@ -137,7 +137,7 @@ function App() {
         console.log("Saving results to ServiceNow table...");
 
         const servicenowResponse = await axios.post(
-          'https://dev303448.service-now.com/api/1763965/resumerankingapi/upload',
+          'https://dev303448.service-now.com/api/now/table/u_resume_ranking',
           resumeResults,
           {
             auth: {
