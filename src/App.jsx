@@ -137,12 +137,12 @@ function App() {
         console.log("Saving results to ServiceNow table...");
 
         const servicenowResponse = await axios.post(
-          'https://dev303448.service-now.com/api/now/table/u_resume_ranking',
+          'https://dev303448.service-now.com/api/1852827/screening_results/POST',
           resumeResults,
           {
             auth: {
-              username: 'admin',
-              password: 'n/$zULuUC37l', // ⚠️ avoid hardcoding in production
+              username: 'Integration User',
+              password: 'Password@123', // ⚠️ avoid hardcoding in production
             },
             headers: {
               'Content-Type': 'application/json',
